@@ -1,35 +1,36 @@
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from typing import List, Callable, Set, Any, Dict
+from opentelemetry.instrumentation.openai_v2 import OpenAIInstrumentor
+import time
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from azure.ai.agents.telemetry import trace_function
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import trace
+from ..tools.aiSearchTools import product_recommendations
+from ..tools.inventoryCheck import inventory_check
+from ..tools.discountLogic import calculate_discount
+from ..tools.imageCreationTool import create_image
+from azure.ai.projects.models import (
+    EvaluatorIds,
+    AgentEvaluationRequest
+)
 from azure.ai.agents.models import (
     MessageImageUrlParam,
     MessageInputTextBlock,
     MessageInputImageUrlBlock,
     FunctionTool, ToolSet
 )
-from azure.ai.projects.models import (
-    EvaluatorIds,
-    AgentEvaluationRequest 
-)
-from tools.imageCreationTool import create_image
-from tools.discountLogic import calculate_discount
-from tools.inventoryCheck import inventory_check
-from tools.aiSearchTools import product_recommendations
+from typing import List, Callable, Set, Any, Dict
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from opentelemetry import trace
-from azure.monitor.opentelemetry import configure_azure_monitor
-from azure.ai.agents.telemetry import trace_function
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-import time
-# from opentelemetry.instrumentation.openai_v2 import OpenAIInstrumentor
 
 # # Enable Azure Monitor tracing
 application_insights_connection_string = os.environ["APPLICATIONINSIGHTS_CONNECTION_STRING"]
-configure_azure_monitor(connection_string=application_insights_connection_string)
-# OpenAIInstrumentor().instrument()
-
+configure_azure_monitor(
+    connection_string=application_insights_connection_string)
+OpenAIInstrumentor().instrument()
+os.environ["AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED"] = "true"
 # scenario = os.path.basename(__file__)
 # tracer = trace.get_tracer(__name__)
 
@@ -39,26 +40,29 @@ _executor = ThreadPoolExecutor(max_workers=8)
 # Cache for toolset configurations to avoid repeated initialization
 _toolset_cache: Dict[str, ToolSet] = {}
 
+
 class AgentProcessor:
     def __init__(self, project_client, assistant_id, agent_type: str, thread_id=None):
         self.project_client = project_client
         self.agent_id = assistant_id
         self.agent_type = agent_type
         self.thread_id = thread_id
-        
+
         # Use cached toolset or create new one
         self.toolset = self._get_or_create_toolset(agent_type)
-        
-        self.project_client.agents.enable_auto_function_calls(tools = self.toolset)
+
+        self.project_client.agents.enable_auto_function_calls(
+            tools=self.toolset)
 
     def _get_or_create_toolset(self, agent_type: str) -> ToolSet:
         """Get cached toolset or create new one to avoid repeated initialization."""
         if agent_type in _toolset_cache:
             return _toolset_cache[agent_type]
-        
+
         # Create new toolset based on agent type
         if agent_type == "interior_designer":
-            interior_functions: Set[Callable[..., Any]] = {create_image, product_recommendations}
+            interior_functions: Set[Callable[..., Any]] = {
+                create_image, product_recommendations}
             functions = FunctionTool(interior_functions)
         elif agent_type == "customer_loyalty":
             loyalty_functions: Set[Callable[..., Any]] = {calculate_discount}
@@ -69,7 +73,7 @@ class AgentProcessor:
         else:
             default_functions: Set[Callable[..., Any]] = set()
             functions = FunctionTool(default_functions)
-        
+
         # Adding attributes to the current span
         span = trace.get_current_span()
         span.set_attribute("selected_agent", agent_type)
@@ -77,7 +81,7 @@ class AgentProcessor:
         toolset = ToolSet()
         toolset.add(functions)
         self.project_client.agents.enable_auto_function_calls(toolset)
-        
+
         # Cache the toolset
         _toolset_cache[agent_type] = toolset
         return toolset
@@ -102,16 +106,19 @@ class AgentProcessor:
             role="user",
             content=content_blocks
         )
-        print(f"[TIMELOG] Message creation took: {time.time() - start_time:.2f}s")
+        print(
+            f"[TIMELOG] Message creation took: {time.time() - start_time:.2f}s")
         run_start = time.time()
-        run = self.project_client.agents.runs.create_and_process(thread_id=thread_id, agent_id=self.agent_id, tool_choice = "auto")
+        run = self.project_client.agents.runs.create_and_process(
+            thread_id=thread_id, agent_id=self.agent_id, tool_choice="auto")
         print(f"[TIMELOG] Thread run took: {time.time() - run_start:.2f}s")
-        messages = self.project_client.agents.messages.list(thread_id=thread_id)
+        messages = self.project_client.agents.messages.list(
+            thread_id=thread_id)
         for message in messages:
             pass  # Only time logs are kept
-        print(f"[TIMELOG] Total run_conversation_with_image time: {time.time() - start_time:.2f}s")
+        print(
+            f"[TIMELOG] Total run_conversation_with_image time: {time.time() - start_time:.2f}s")
 
-    
     def run_conversation_with_text(self, input_message: str = ""):
         start_time = time.time()
         thread_id = self.thread_id
@@ -120,20 +127,24 @@ class AgentProcessor:
             role="user",
             content=input_message,
         )
-        print(f"[TIMELOG] Message creation took: {time.time() - start_time:.2f}s")
+        print(
+            f"[TIMELOG] Message creation took: {time.time() - start_time:.2f}s")
         run_start = time.time()
-        run = self.project_client.agents.runs.create_and_process(thread_id=thread_id, agent_id=self.agent_id, tool_choice = "auto")
+        run = self.project_client.agents.runs.create_and_process(
+            thread_id=thread_id, agent_id=self.agent_id, tool_choice="auto")
         print(f"[TIMELOG] Thread run took: {time.time() - run_start:.2f}s")
-        messages = self.project_client.agents.messages.list(thread_id=thread_id)
+        messages = self.project_client.agents.messages.list(
+            thread_id=thread_id)
         for message in messages:
             yield message.content
-        print(f"[TIMELOG] Total run_conversation_with_text time: {time.time() - start_time:.2f}s")
+        print(
+            f"[TIMELOG] Total run_conversation_with_text time: {time.time() - start_time:.2f}s")
 
     def _run_conversation_sync(self, input_message: str = ""):
         """Optimized synchronous conversation runner with better error handling."""
         thread_id = self.thread_id
         start_time = time.time()
-        
+
         try:
             # Create message
             self.project_client.agents.messages.create(
@@ -141,8 +152,9 @@ class AgentProcessor:
                 role="user",
                 content=input_message,
             )
-            print(f"[TIMELOG] Message creation took: {time.time() - start_time:.2f}s")
-            
+            print(
+                f"[TIMELOG] Message creation took: {time.time() - start_time:.2f}s")
+
             # Run agent with timeout handling
             run_start = time.time()
             run = self.project_client.agents.runs.create_and_process(
@@ -167,12 +179,15 @@ class AgentProcessor:
 
             # Optimized message retrieval - only get the latest message instead of listing all
             messages_start = time.time()
-            messages = list(self.project_client.agents.messages.list(thread_id=thread_id, limit=1))
-            print(f"[TIMELOG] Message retrieval took: {time.time() - messages_start:.2f}s")
-            
+            messages = list(self.project_client.agents.messages.list(
+                thread_id=thread_id, limit=1))
+            print(
+                f"[TIMELOG] Message retrieval took: {time.time() - messages_start:.2f}s")
+
             # Find the latest assistant message (messages are most recent first)
-            assistant_msg = next((m for m in messages if m.role == "assistant"), None)
-            
+            assistant_msg = next(
+                (m for m in messages if m.role == "assistant"), None)
+
             if assistant_msg:
                 # Robustly extract all text values from all blocks
                 content = assistant_msg.content
@@ -192,13 +207,13 @@ class AgentProcessor:
                         # Join all text blocks with newlines if multiple
                         result = ['\n'.join(text_blocks)]
                         return result
-                
+
                 # Fallback: return stringified content
                 result = [str(content)]
                 return result
             else:
                 return [""]
-                
+
         except Exception as e:
             print(f"[ERROR] Conversation failed: {str(e)}")
             return [f"Error processing message: {str(e)}"]

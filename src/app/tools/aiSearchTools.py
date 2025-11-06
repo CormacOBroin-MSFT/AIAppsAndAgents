@@ -1,8 +1,13 @@
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from dotenv import load_dotenv
 from azure.search.documents import SearchClient
 from azure.core.credentials import AzureKeyCredential
+
+# Load environment variables from the correct path
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+load_dotenv(env_path)
 
 # Initialize Azure OpenAI and Azure Cognitive Search credentials
 SEARCH_ENDPOINT = os.environ.get("SEARCH_ENDPOINT")
