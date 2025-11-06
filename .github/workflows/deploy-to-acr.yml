@@ -7,9 +7,6 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./src
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -25,6 +22,7 @@ jobs:
 
     - name: Create .env from GitHub secret
       run: |
+        cd src
         echo "${{ secrets.ENV }}" > .env
 
     - name: Log in to Azure Container Registry
@@ -38,10 +36,12 @@ jobs:
     - name: Build and push image to ACR
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: ./Dockerfile
+        context: ./src
+        file: ./src/Dockerfile
         push: true
         tags: ${{ secrets.ACR_LOGIN_SERVER }}/aiappsandagents:latest
 
     - name: Clean up .env file
-      run: rm -f .env
+      run: |
+        cd src
+        rm -f .env
