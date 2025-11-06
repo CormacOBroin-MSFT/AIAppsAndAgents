@@ -1,6 +1,5 @@
 from azure.ai.agents.models import CodeInterpreterTool, FunctionTool, ToolSet
 from dotenv import load_dotenv
-from tools.inventoryCheck import inventory_check
 import json
 from typing import Callable, Set, Any
 from azure.identity import DefaultAzureCredential
@@ -10,28 +9,20 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 load_dotenv()
 
-IA_PROMPT_TARGET = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))), 'prompts', 'InventoryAgentPrompt.txt')
-with open(IA_PROMPT_TARGET, 'r', encoding='utf-8') as file:
-    IA_PROMPT = file.read()
+CORA_PROMPT_TARGET = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), 'prompts', 'CoraPrompt.txt')
+with open(CORA_PROMPT_TARGET, 'r', encoding='utf-8') as file:
+    CORA_PROMPT = file.read()
 
 project_endpoint = os.environ["AZURE_AI_AGENT_ENDPOINT"]
-agent_id = os.environ.get("inventory_agent")
+agent_id = os.environ["cora"]
+
 
 project_client = AIProjectClient(
     endpoint=project_endpoint,
     credential=DefaultAzureCredential(),
 )
 
-user_functions: Set[Callable[..., Any]] = {
-    inventory_check,
-}
-
-# Initialize agent toolset with user functions
-functions = FunctionTool(user_functions)
-toolset = ToolSet()
-toolset.add(functions)
-project_client.agents.enable_auto_function_calls(tools=functions)
 
 with project_client:
     agent_exists = False
@@ -45,19 +36,18 @@ with project_client:
         agent = project_client.agents.update_agent(
             agent_id=agent.id,
             # Model deployment name
-            model=os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME"),
-            name="Zava Inventory Agent",  # Name of the agent
-            instructions=IA_PROMPT,  # Updated instructions for the agent
-            toolset=toolset
+            model=os.environ["AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME"],
+            name="Cora",  # Name of the agent
+            instructions=CORA_PROMPT,  # Updated instructions for the agent
+            # toolset=toolset
         )
         print(f"Updated agent, ID: {agent.id}")
     else:
-        # Create an agent with the Bing Grounding tool
         agent = project_client.agents.create_agent(
             # Model deployment name
-            model=os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME"),
-            name="Zava Inventory Agent",  # Name of the agent
-            instructions=IA_PROMPT,  # Instructions for the agent
-            toolset=toolset
+            model=os.environ["AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME"],
+            name="Cora",  # Name of the agent
+            instructions=CORA_PROMPT,  # Instructions for the agent
+            # toolset=toolset
         )
         print(f"Created agent, ID: {agent.id}")

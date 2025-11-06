@@ -1,0 +1,83 @@
+name: Update Inventory Agent
+
+on:
+  push:
+    paths:
+      - 'src/app/agents/inventoryAgent_initializer.py'
+      - 'src/prompts/InventoryAgentPrompt.txt'
+      - 'src/app/tools/inventoryCheck.py'
+  pull_request:
+    paths:
+      - 'src/app/agents/inventoryAgent_initializer.py'
+      - 'src/prompts/InventoryAgentPrompt.txt'
+      - 'src/app/tools/inventoryCheck.py'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  update-agent:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r src/requirements.txt
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Set up environment variables
+      run: |
+        # Create .env file from GitHub secrets
+        echo "AZURE_AI_AGENT_ENDPOINT=${{ secrets.AZURE_AI_AGENT_ENDPOINT }}" >> src/.env
+        echo "AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME=${{ secrets.AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME }}" >> src/.env
+        echo "AZURE_AI_AGENT_API_VERSION=${{ secrets.AZURE_AI_AGENT_API_VERSION }}" >> src/.env
+        echo "inventory_agent=${{ secrets.INVENTORY_AGENT_ID }}" >> src/.env
+        
+        # Add other required environment variables
+        echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> src/.env
+        echo "AZURE_OPENAI_KEY=${{ secrets.AZURE_OPENAI_KEY }}" >> src/.env
+        echo "AZURE_OPENAI_API_VERSION=${{ secrets.AZURE_OPENAI_API_VERSION }}" >> src/.env
+        
+        # Add inventory check tool credentials (Cosmos DB)
+        echo "COSMOS_ENDPOINT=${{ secrets.COSMOS_ENDPOINT }}" >> src/.env
+        echo "COSMOS_KEY=${{ secrets.COSMOS_KEY }}" >> src/.env
+        echo "DATABASE_NAME=${{ secrets.DATABASE_NAME }}" >> src/.env
+        echo "CONTAINER_NAME=${{ secrets.CONTAINER_NAME }}" >> src/.env
+    
+    - name: Run Inventory Agent Initializer
+      working-directory: src
+      run: |
+        python -m app.agents.inventoryAgent_initializer
+      env:
+        # Set Azure authentication environment variables
+        AZURE_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+        AZURE_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+        AZURE_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+        AZURE_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+    
+    - name: Verify Agent Update
+      run: |
+        echo "Inventory Agent has been successfully updated or created!"
+        echo "Workflow triggered by changes to:"
+        echo "- src/app/agents/inventoryAgent_initializer.py"
+        echo "- src/prompts/InventoryAgentPrompt.txt"
+        echo "- src/app/tools/inventoryCheck.py"

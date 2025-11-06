@@ -1,0 +1,83 @@
+name: Update Interior Design Agent
+
+on:
+  push:
+    paths:
+      - 'src/app/agents/interDesignAgent_initializer.py'
+      - 'src/prompts/InteriorDesignAgentPrompt.txt'
+      - 'src/app/tools/imageCreationTool.py'
+  pull_request:
+    paths:
+      - 'src/app/agents/interDesignAgent_initializer.py'
+      - 'src/prompts/InteriorDesignAgentPrompt.txt'
+      - 'src/app/tools/imageCreationTool.py'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  update-agent:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r src/requirements.txt
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Set up environment variables
+      run: |
+        # Create .env file from GitHub secrets
+        echo "AZURE_AI_AGENT_ENDPOINT=${{ secrets.AZURE_AI_AGENT_ENDPOINT }}" >> src/.env
+        echo "AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME=${{ secrets.AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME }}" >> src/.env
+        echo "AZURE_AI_AGENT_API_VERSION=${{ secrets.AZURE_AI_AGENT_API_VERSION }}" >> src/.env
+        echo "interior_designer=${{ secrets.INTERIOR_DESIGNER_AGENT_ID }}" >> src/.env
+        
+        # Add other required environment variables
+        echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> src/.env
+        echo "AZURE_OPENAI_KEY=${{ secrets.AZURE_OPENAI_KEY }}" >> src/.env
+        echo "AZURE_OPENAI_API_VERSION=${{ secrets.AZURE_OPENAI_API_VERSION }}" >> src/.env
+        
+        # Add image creation tool credentials
+        echo "gpt_endpoint=${{ secrets.GPT_ENDPOINT }}" >> src/.env
+        echo "gpt_deployment=${{ secrets.GPT_DEPLOYMENT }}" >> src/.env
+        echo "gpt_api_key=${{ secrets.GPT_API_KEY }}" >> src/.env
+        echo "gpt_api_version=${{ secrets.GPT_API_VERSION }}" >> src/.env
+    
+    - name: Run Interior Design Agent Initializer
+      working-directory: src
+      run: |
+        python -m app.agents.interDesignAgent_initializer
+      env:
+        # Set Azure authentication environment variables
+        AZURE_CLIENT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+        AZURE_CLIENT_SECRET: ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+        AZURE_TENANT_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+        AZURE_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+    
+    - name: Verify Agent Update
+      run: |
+        echo "Interior Design Agent has been successfully updated or created!"
+        echo "Workflow triggered by changes to:"
+        echo "- src/app/agents/interDesignAgent_initializer.py"
+        echo "- src/prompts/InteriorDesignAgentPrompt.txt"
+        echo "- src/app/tools/imageCreationTool.py"
