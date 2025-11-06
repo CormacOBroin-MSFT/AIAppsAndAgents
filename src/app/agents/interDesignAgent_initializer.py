@@ -1,4 +1,4 @@
-from tools.imageCreationTool import create_image
+from app.tools.imageCreationTool import create_image
 from typing import Callable, Set, Any
 from azure.ai.agents.models import FunctionTool, ToolSet
 from azure.identity import DefaultAzureCredential

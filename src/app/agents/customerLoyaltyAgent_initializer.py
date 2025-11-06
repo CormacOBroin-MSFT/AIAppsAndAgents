@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from tools.discountLogic import calculate_discount
+from app.tools.discountLogic import calculate_discount
 from typing import Callable, Set, Any
 from azure.ai.agents.models import FunctionTool, ToolSet
 from azure.identity import DefaultAzureCredential

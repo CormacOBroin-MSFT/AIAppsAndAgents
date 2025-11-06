@@ -1,6 +1,6 @@
 from azure.ai.agents.models import CodeInterpreterTool, FunctionTool, ToolSet
 from dotenv import load_dotenv
-from tools.inventoryCheck import inventory_check
+from app.tools.inventoryCheck import inventory_check
 import json
 from typing import Callable, Set, Any
 from azure.identity import DefaultAzureCredential
